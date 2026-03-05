@@ -293,15 +293,39 @@ function NewCOView({ project, onGenerate, onBack }) {
 
   const canGenerate = transcript.length > 10;
 
+  const shouldListenRef = useRef(false);
+
   function toggleListening() {
-    if (isListening) { recognitionRef.current?.stop(); setIsListening(false); return; }
+    if (isListening) {
+      shouldListenRef.current = false;
+      try { recognitionRef.current?.abort(); } catch {}
+      recognitionRef.current = null;
+      setIsListening(false);
+      return;
+    }
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) { alert("Use Chrome for voice dictation."); return; }
-    const rec = new SR();
-    rec.continuous = true; rec.interimResults = true;
-    rec.onresult = e => setTranscript(Array.from(e.results).map(r=>r[0].transcript).join(" "));
-    rec.onend = () => setIsListening(false);
-    rec.start(); recognitionRef.current = rec; setIsListening(true);
+    shouldListenRef.current = true;
+    setIsListening(true);
+    function startRec() {
+      if (!shouldListenRef.current) return;
+      const rec = new SR();
+      rec.continuous = false;
+      rec.interimResults = false;
+      rec.onresult = e => {
+        const t = Array.from(e.results).map(r => r[0].transcript).join(" ");
+        setTranscript(prev => (prev ? prev + " " + t : t).trim());
+      };
+      rec.onend = () => { if (shouldListenRef.current) startRec(); };
+      rec.onerror = e => {
+        if (e.error === "no-speech" && shouldListenRef.current) { startRec(); return; }
+        shouldListenRef.current = false;
+        setIsListening(false);
+      };
+      rec.start();
+      recognitionRef.current = rec;
+    }
+    startRec();
   }
 
   function handlePhotos(e) {
