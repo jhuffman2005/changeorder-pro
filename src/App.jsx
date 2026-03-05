@@ -164,11 +164,13 @@ function ProjectFormView({ project, onSave, onBack }) {
   const [clientName, setClientName] = useState(project?.clientName||"");
   const [clientEmail, setClientEmail] = useState(project?.clientEmail||"");
   const [clientPhone, setClientPhone] = useState(project?.clientPhone||"");
+  const [gcEmail, setGcEmail] = useState(project?.gcEmail||"");
+  const [gcPhone, setGcPhone] = useState(project?.gcPhone||"");
 
-  const canSave = name && address && clientName && clientEmail;
+  const canSave = name && address && clientName && clientEmail && gcEmail;
 
   function save() {
-    onSave({ id: project?.id||uid(), name, address, clientName, clientEmail, clientPhone, cos: project?.cos||[] });
+    onSave({ id: project?.id||uid(), name, address, clientName, clientEmail, clientPhone, gcEmail, gcPhone, cos: project?.cos||[] });
   }
 
   return (
@@ -185,11 +187,17 @@ function ProjectFormView({ project, onSave, onBack }) {
         <Field label="Project Address" value={address} onChange={setAddress} placeholder="123 Oak Street, Grapevine TX 76051" />
       </Card>
 
-      <Card className="fu2" style={{ marginBottom:24 }}>
+      <Card className="fu2" style={{ marginBottom:14 }}>
         <div style={{ fontSize:13,fontWeight:600,color:C.steel,marginBottom:14 }}>👤 Client Info</div>
         <Field label="Client Name" value={clientName} onChange={setClientName} placeholder="John & Sarah Miller" />
         <Field label="Client Email" value={clientEmail} onChange={setClientEmail} placeholder="client@email.com" type="email" />
         <Field label="Client Phone" value={clientPhone} onChange={setClientPhone} placeholder="(817) 555-0100" type="tel" />
+      </Card>
+
+      <Card className="fu3" style={{ marginBottom:24 }}>
+        <div style={{ fontSize:13,fontWeight:600,color:C.steel,marginBottom:14 }}>🔨 Your Info (GC)</div>
+        <Field label="Your Email" value={gcEmail} onChange={setGcEmail} placeholder="you@yourcompany.com" type="email" />
+        <Field label="Your Phone" value={gcPhone} onChange={setGcPhone} placeholder="(817) 555-0100" type="tel" />
       </Card>
 
       <Btn onClick={save} disabled={!canSave} variant="primary" style={{ width:"100%" }} icon={project?"💾":"➕"}>
@@ -488,9 +496,28 @@ function COPreviewView({ co, project, onSend, onBack }) {
 
   async function handleSend() {
     setSending(true);
-    await new Promise(r=>setTimeout(r,1600));
-    setSending(false); setSent(true);
-    setTimeout(() => onSend({ ...co, status:"pending" }), 900);
+    try {
+      // Save CO to server so approval page can retrieve it
+      await fetch("/api/co", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ co, project })
+      });
+      // Send email + SMS to client
+      const res = await fetch("/api/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ co, project })
+      });
+      const data = await res.json();
+      if (data.errors?.length) console.warn("Send warnings:", data.errors);
+      setSending(false);
+      setSent(true);
+      setTimeout(() => onSend({ ...co, status:"pending", approvalUrl: data.approvalUrl }), 900);
+    } catch(err) {
+      alert("Send failed: " + err.message);
+      setSending(false);
+    }
   }
 
   return (
@@ -603,10 +630,19 @@ function ClientApprovalView({ co, project, onApproved, onBack }) {
   const [status, setStatus] = useState(co.status==="approved"?"approved":"pending");
   const [sig, setSig] = useState("");
 
-  function approve() {
+  async function approve() {
     if (!sig.trim()) { alert("Please type your full name to sign."); return; }
+    try {
+      await fetch(`/api/co?id=${co.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ signedBy: sig })
+      });
+    } catch(err) {
+      console.error("Approval save failed:", err);
+    }
     setStatus("approved");
-    onApproved();
+    onApproved(sig);
   }
 
   if (status === "approved") return (
@@ -698,8 +734,8 @@ export default function App() {
     setView("co-detail");
   }
 
-  function handleApproved() {
-    const approved = { ...activeCO, status:"approved" };
+  function handleApproved(sig) {
+    const approved = { ...activeCO, status:"approved", signedBy: sig, signedAt: new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"}) };
     const updated = { ...activeProject, cos: activeProject.cos.map(c=>c.id===approved.id?approved:c) };
     updateProject(updated);
     setActiveCO(approved);
@@ -743,7 +779,7 @@ export default function App() {
         )}
         {view==="client-approval" && activeCO && activeProject && (
           <ClientApprovalView co={activeCO} project={activeProject}
-            onApproved={handleApproved}
+            onApproved={(sig) => handleApproved(sig)}
             onBack={()=>setView("co-detail")} />
         )}
       </div>
