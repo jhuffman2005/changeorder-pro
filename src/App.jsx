@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 
-const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
-const API_KEY = typeof import.meta !== "undefined" && import.meta.env ? import.meta.env.VITE_ANTHROPIC_KEY : "";
+const ANTHROPIC_API_URL = "/api/generate";
 
 const C = {
   ink: "#0f0e0c", steel: "#1c2b35", amber: "#e8a020", amberDim: "#c4861a",
@@ -131,8 +130,7 @@ function DashboardView({ projects, onSelectProject, onNewProject }) {
             const approved = p.cos?.filter(c=>c.status==="approved").length||0;
             const total = p.cos?.reduce((a,c)=>a+Number(c.totalCost||0),0)||0;
             return (
-              <Card key={p.id} className="fu" style={{ marginBottom:10,cursor:"pointer",transition:"all 0.2s",animationDelay:`${i*0.06}s` }}
-                onClick={() => onSelectProject(p)}>
+              <div key={p.id} className="fu" onClick={() => onSelectProject(p)} style={{ marginBottom:10,cursor:"pointer",transition:"all 0.2s",animationDelay:`${i*0.06}s`,background:C.white,border:`1px solid ${C.border}`,borderRadius:12,padding:18 }}>
                 <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start" }}>
                   <div style={{ flex:1 }}>
                     <div style={{ fontWeight:700,fontSize:15,marginBottom:2 }}>{p.name}</div>
@@ -376,7 +374,7 @@ Write a complete professional change order. Return ONLY valid JSON:
 
       const res = await fetch(ANTHROPIC_API_URL, {
         method:"POST",
-        headers:{"Content-Type":"application/json", ...(API_KEY ? {"x-api-key": API_KEY, "anthropic-version": "2023-06-01"} : {})},
+        headers:{"Content-Type":"application/json"},
         body: JSON.stringify({ model:"claude-sonnet-4-5", max_tokens:1000, messages:[{role:"user",content:prompt}] })
       });
       const data = await res.json();
