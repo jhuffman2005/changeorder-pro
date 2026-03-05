@@ -375,11 +375,15 @@ Write a complete professional change order. Return ONLY valid JSON:
       const res = await fetch(ANTHROPIC_API_URL, {
         method:"POST",
         headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ model:"claude-sonnet-4-5", max_tokens:1000, messages:[{role:"user",content:prompt}] })
+        body: JSON.stringify({ model:"claude-sonnet-4-5", max_tokens:1500, messages:[{role:"user",content:prompt}] })
       });
       const data = await res.json();
+      if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+      if (!data.content || !data.content.length) throw new Error("Empty response: " + JSON.stringify(data));
       const text = data.content.map(b=>b.text||"").join("");
-      const co = JSON.parse(text.replace(/```json|```/g,"").trim());
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error("No JSON found in response: " + text.slice(0,200));
+      const co = JSON.parse(jsonMatch[0]);
 
       onGenerate({
         id: uid(), coNumber: coNum, status: "pending", date: today(),
