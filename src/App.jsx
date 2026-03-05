@@ -148,7 +148,7 @@ function DashboardView({ projects, onSelectProject, onNewProject }) {
                     {approved > 0 && <Badge color={C.green}>{approved} Approved</Badge>}
                   </div>
                 )}
-              </Card>
+              </div>
             );
           })}
         </div>
