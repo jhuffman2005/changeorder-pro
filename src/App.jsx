@@ -29,11 +29,7 @@ const fmt$ = n => "$" + Number(n || 0).toLocaleString();
 const today = () => new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 
 function useStorage(key, init) {
-  const [val, setVal] = useState(() => {
-    try { const s = localStorage.getItem(key); return s ? JSON.parse(s) : init; } catch { return init; }
-  });
-  useEffect(() => { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} }, [val]);
-  return [val, setVal];
+  return useState(init);
 }
 
 // ── Shared UI ────────────────────────────────────────────────────────────────
