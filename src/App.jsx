@@ -700,8 +700,117 @@ function ClientApprovalView({ co, project, onApproved, onBack }) {
   );
 }
 
+
+// ── VIEW: Public Approval Page (loaded from email link) ──────────────────────
+function PublicApprovalView({ coId }) {
+  const [record, setRecord] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [sig, setSig] = useState("");
+  const [status, setStatus] = useState("pending");
+
+  useEffect(() => {
+    fetch(`/api/co?id=${coId}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) { setError("Change order not found."); }
+        else { setRecord(data); setStatus(data.co.status || "pending"); }
+        setLoading(false);
+      })
+      .catch(() => { setError("Failed to load change order."); setLoading(false); });
+  }, [coId]);
+
+  async function approve() {
+    if (!sig.trim()) { alert("Please type your full name to sign."); return; }
+    try {
+      await fetch(`/api/co?id=${coId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ signedBy: sig })
+      });
+      setStatus("approved");
+    } catch(err) { alert("Failed to save approval. Please try again."); }
+  }
+
+  if (loading) return (
+    <div style={{ display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",flexDirection:"column",gap:16 }}>
+      <Spinner /><div style={{ color:C.muted,fontSize:14 }}>Loading change order…</div>
+    </div>
+  );
+
+  if (error) return (
+    <div style={{ maxWidth:480,margin:"60px auto",padding:"0 16px",textAlign:"center" }}>
+      <div style={{ fontSize:40,marginBottom:16 }}>⚠️</div>
+      <div style={{ fontFamily:font.display,fontSize:20,fontWeight:700,marginBottom:8 }}>Not Found</div>
+      <div style={{ color:C.muted }}>{error}</div>
+    </div>
+  );
+
+  const { co, project } = record;
+
+  if (status === "approved") return (
+    <div style={{ maxWidth:480,margin:"0 auto",padding:"60px 16px",textAlign:"center" }}>
+      <div style={{ width:90,height:90,background:C.green,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:40,margin:"0 auto 24px" }}>✓</div>
+      <div style={{ fontFamily:font.display,fontSize:26,fontWeight:700,marginBottom:10 }}>Change Order Approved!</div>
+      <div style={{ color:C.muted,marginBottom:24 }}>Signed by <strong>{co.signedBy||sig}</strong> · {co.signedAt||"Today"}</div>
+      <Card style={{ background:C.greenLight,border:`1px solid #a8dcc0` }}>
+        <div style={{ fontSize:14,color:C.green,fontWeight:500,lineHeight:1.7 }}>
+          Your contractor has been notified. A confirmation has been sent to your email.
+        </div>
+      </Card>
+    </div>
+  );
+
+  return (
+    <div style={{ maxWidth:480,margin:"0 auto",padding:"0 0 40px" }}>
+      <div style={{ background:C.steel,padding:"18px 20px 14px",borderBottom:`3px solid ${C.amber}` }}>
+        <div style={{ display:"flex",alignItems:"center",gap:10,marginBottom:10 }}>
+          <div style={{ width:30,height:30,background:C.amber,borderRadius:6,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15 }}>🔨</div>
+          <div style={{ color:C.white,fontFamily:font.display,fontWeight:700,fontSize:17 }}>ChangeOrder Pro</div>
+        </div>
+        <div style={{ color:"rgba(255,255,255,0.55)",fontSize:12 }}>Action Required — Approval Needed</div>
+      </div>
+      <div style={{ padding:"20px 16px 0" }}>
+        <div className="fu" style={{ marginBottom:18 }}>
+          <div style={{ fontFamily:font.display,fontSize:21,fontWeight:700,lineHeight:1.3 }}>
+            Hi {project.clientName.split(" ")[0]}, your contractor sent a change order.
+          </div>
+          <div style={{ color:C.muted,fontSize:13,marginTop:6 }}>Please review and sign below.</div>
+        </div>
+        <CODocument co={co} project={project} />
+        <Card className="fu3" style={{ marginTop:16 }}>
+          <Label>Electronic Signature</Label>
+          <div style={{ fontSize:13,color:C.muted,marginBottom:10 }}>Type your full name to approve this change order.</div>
+          <input value={sig} onChange={e=>setSig(e.target.value)} placeholder="Full Name"
+            style={{ width:"100%",border:`2px solid ${C.border}`,borderRadius:8,padding:"13px",fontSize:16,fontFamily:"Georgia, serif",background:C.cream,outline:"none",color:C.ink }} />
+        </Card>
+        <div style={{ marginTop:14 }}>
+          <Btn onClick={approve} variant="primary" icon="✅" style={{ width:"100%",marginBottom:10,padding:"15px" }}>
+            Approve & Sign Change Order
+          </Btn>
+        </div>
+        <div style={{ textAlign:"center",fontSize:11,color:C.muted,marginTop:14 }}>Powered by ChangeOrder Pro · Secure Electronic Signature</div>
+      </div>
+    </div>
+  );
+}
+
 // ── ROOT ──────────────────────────────────────────────────────────────────────
 export default function App() {
+  // Check if this is a public approval URL: /approve/:id
+  const path = window.location.pathname;
+  const approvalMatch = path.match(/^\/approve\/(.+)$/);
+  if (approvalMatch) {
+    return (
+      <>
+        <style>{globalStyle}</style>
+        <div style={{ minHeight:"100vh",background:C.cream }}>
+          <PublicApprovalView coId={approvalMatch[1]} />
+        </div>
+      </>
+    );
+  }
+
   const [projects, setProjects] = useStorage("co_projects", []);
   const [view, setView] = useState("dashboard");
   const [activeProject, setActiveProject] = useState(null);
