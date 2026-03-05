@@ -30,7 +30,18 @@ const fmt$ = n => "$" + Number(n || 0).toLocaleString();
 const today = () => new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 
 function useStorage(key, init) {
-  return useState(init);
+  const [val, setVal] = useState(() => {
+    try {
+      const s = localStorage.getItem(key);
+      return s ? JSON.parse(s) : init;
+    } catch { return init; }
+  });
+  const setAndStore = (v) => {
+    const next = typeof v === "function" ? v(val) : v;
+    try { localStorage.setItem(key, JSON.stringify(next)); } catch {}
+    setVal(next);
+  };
+  return [val, setAndStore];
 }
 
 // ── Shared UI ────────────────────────────────────────────────────────────────
@@ -661,6 +672,7 @@ export default function App() {
   function updateProject(updated) {
     setProjects(ps => ps.map(p => p.id===updated.id ? updated : p));
     setActiveProject(updated);
+    return updated;
   }
 
   function saveProject(p) {
@@ -697,13 +709,17 @@ export default function App() {
       <div style={{ minHeight:"100vh",background:C.cream }}>
         {view==="dashboard" && (
           <DashboardView projects={projects}
-            onSelectProject={p=>{ setActiveProject(p); setView("project"); }}
+            onSelectProject={p=>{ 
+              const fresh = projects.find(x=>x.id===p.id)||p; 
+              setActiveProject(fresh); 
+              setView("project"); 
+            }}
             onNewProject={()=>{ setActiveProject(null); setView("new-project"); }} />
         )}
         {view==="new-project" && (
           <ProjectFormView project={activeProject}
             onSave={saveProject}
-            onBack={()=>setView(activeProject?"project":"dashboard")} />
+            onBack={()=>{ setView(activeProject ? "project" : "dashboard"); }} />
         )}
         {view==="project" && activeProject && (
           <ProjectDetailView project={activeProject}
