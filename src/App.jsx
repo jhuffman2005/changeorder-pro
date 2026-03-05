@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
+const API_KEY = typeof import.meta !== "undefined" && import.meta.env ? import.meta.env.VITE_ANTHROPIC_KEY : "";
 
 const C = {
   ink: "#0f0e0c", steel: "#1c2b35", amber: "#e8a020", amberDim: "#c4861a",
@@ -364,8 +365,8 @@ Write a complete professional change order. Return ONLY valid JSON:
 
       const res = await fetch(ANTHROPIC_API_URL, {
         method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ model:"claude-sonnet-4-20250514", max_tokens:1000, messages:[{role:"user",content:prompt}] })
+        headers:{"Content-Type":"application/json", ...(API_KEY ? {"x-api-key": API_KEY, "anthropic-version": "2023-06-01"} : {})},
+        body: JSON.stringify({ model:"claude-sonnet-4-5", max_tokens:1000, messages:[{role:"user",content:prompt}] })
       });
       const data = await res.json();
       const text = data.content.map(b=>b.text||"").join("");
@@ -377,7 +378,11 @@ Write a complete professional change order. Return ONLY valid JSON:
         totalCost: cost || co.totalCost,
         scheduleDays: scheduleDays || co.scheduleDays,
       });
-    } catch(err) { alert("Generation failed. Please try again."); console.error(err); }
+    } catch(err) {
+      const msg = err?.message || JSON.stringify(err);
+      alert("Generation failed: " + msg);
+      console.error(err);
+    }
     setGenerating(false);
   }
 
